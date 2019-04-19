@@ -1,2 +1,2 @@
-# crlite_chrome
-A Chrome extension implementation of CRLite
+# index_calculus 
+A Python implementation of the index calculus attack of the discrete log problem
