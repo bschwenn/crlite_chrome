@@ -6,6 +6,7 @@ import logging
 import sys
 import math
 import random
+import numpy as np
 
 
 def precompute_prime_base(B):
@@ -31,8 +32,61 @@ def prime_factorization(n, primes):
         while n % p == 0:
             n //= p
             ret[p] += 1
-    return ret if n == 1 else None
+    return [ret[i] for i in ret] if n == 1 else None
 
+
+def solve_relations(param):
+    pass
+
+
+def subtract_rows(row_1, row_2, multiple,p):
+    row_1 -= (multiple * row_2) % p
+    row_1 %= p
+    return row_1
+
+
+def rref(matrix, p):
+    i, j = 0, 0
+    while i < matrix.shape[0] and j < matrix.shape[1]:
+        if matrix[i][j] == 0:
+            print("hey, shouldn't be here")
+            k = i
+            while k < matrix.shape[0]:
+                if matrix[k][j] != 0:
+                    break
+                k += 1
+            if k == matrix.shape[0]:
+                j += 1
+                continue
+            matrix[[i, k]] = matrix[[k, i]]
+        for k in range(0, matrix.shape[1]):
+            print("matrix[i][j] is ", matrix[i][j])
+            print("matrix[i][k] is ", matrix[i][k])
+            if k != j:
+                matrix[i][k] /= matrix[i][j]
+            print("The result is ", matrix[i][k])
+        matrix[i][j] = 1
+        for k in range(0, matrix.shape[0]):
+            if k != i:
+                matrix[k] = subtract_rows(matrix[k], matrix[i], matrix[k][j], p)
+        i += 1
+        j += 1
+        print(matrix)
+    return matrix
+
+
+def zero_row_absent(matrix):
+    for i in matrix[-1]:
+        if i != 0:
+            return True
+    return False
+
+
+def linearly_independent(prime_factors, factor_products, p):
+    factor_products.append(prime_factors)
+    matrix = np.array(factor_products, dtype=np.float64)
+    matrix = rref(matrix, p)
+    return zero_row_absent(matrix)
 
 def index_calculus(beta, p, alpha):
     """
@@ -53,13 +107,17 @@ def index_calculus(beta, p, alpha):
         if exp in checked:
             continue
         checked.add(exp)
-        prime_factors = prime_factorization(pow(alpha, exp, p), factor_base)
+        power = pow(alpha, exp, p)
+        prime_factors = prime_factorization(power, factor_base)
         if prime_factors:
-            for p in prime_factors:
-                unused.remove(p)
-            factor_products.append(prime_factors)
-
-
+            prime_factors.append(power)
+            if linearly_independent(prime_factors, factor_products, p):
+                for index,i in enumerate(prime_factors):
+                    if factor_base[index] in unused:
+                        unused.remove(factor_base[index])
+                factor_products.append(prime_factors)
+    prime_discrete_logs = solve_relations(np.array(factor_products, dtype=np.float64))
+    
 
 
 
@@ -83,4 +141,6 @@ def main():
 
 
 if __name__ == "__main__":
-   main()
+   # main()
+   mat = np.array([[2, 1, 0, 1], [1, 1, 0, 3], [0, 0, 0, 0]], dtype=np.float64)
+   print(zero_row_absent(mat))
