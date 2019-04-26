@@ -35,8 +35,35 @@ def prime_factorization(n, primes):
     return [ret[i] for i in ret] if n == 1 else None
 
 
-def solve_relations(param):
-    pass
+def solve_relations(mat, p):
+    n = len(mat)
+    for r_index, row in enumerate(mat):
+        for c_index in range(0, r_index):
+            if mat[r_index][c_index] != 0:
+                #for r_iter_index in range(r_index+1,
+                r_idx_to_use, x, y = find_row_to_elim_nonzero(mat, r_index, c_index, n)
+                if x == None:
+                    return # Failure
+                mat[r_index] = (x * row + y * mat[r_idx_to_use]) % (p-1)
+
+    return mat
+
+def egcd(a, b):
+    if a == 0:
+        return (b, 0, 1)
+    else:
+        g, y, x = egcd(b % a, a)
+        return (g, x - (b // a) * y, y)
+
+def find_row_to_elim_nonzero(mat, r_idx, c_idx, n):
+    pivot_val = mat[r_idx][c_idx]
+
+    for r_iter in range(r_idx+1, n):
+        (d,x,y) = egcd(pivot_val, mat[r_iter][c_idx])
+        if d == 1:
+            return r_iter,x,y
+
+    return None, None, None
 
 
 def subtract_rows(row_1, row_2, multiple,p):
@@ -117,7 +144,7 @@ def index_calculus(beta, p, alpha):
                         unused.remove(factor_base[index])
                 factor_products.append(prime_factors)
     prime_discrete_logs = solve_relations(np.array(factor_products, dtype=np.float64))
-    
+
 
 
 
@@ -141,6 +168,6 @@ def main():
 
 
 if __name__ == "__main__":
-   # main()
-   mat = np.array([[2, 1, 0, 1], [1, 1, 0, 3], [0, 0, 0, 0]], dtype=np.float64)
-   print(zero_row_absent(mat))
+   main()
+   #mat = np.array([[2, 1, 0, 1], [1, 1, 0, 3], [0, 0, 0, 0]], dtype=np.float64)
+   #print(zero_row_absent(mat))
