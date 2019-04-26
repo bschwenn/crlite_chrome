@@ -7,7 +7,7 @@ import sys
 import math
 import random
 import numpy as np
-
+from number_theory import gcd, egcd, prime_mod_inv, sieve_era
 
 def precompute_prime_base(B):
     """
@@ -16,13 +16,7 @@ def precompute_prime_base(B):
 
     Basically just the sieve of Erastothenes
     """
-    l = [True] * (B + 1)
-    l[0] = l[1] = False
-    for i in range(2, int(B ** 0.5) + 1):
-        if l[i]:
-            for a in range(i * i, B + 1, i):
-                l[a] = False
-    return [i for i, j in enumerate(l) if j]
+    return sieve_era(B)
 
 
 def prime_factorization(n, primes):
@@ -48,12 +42,6 @@ def solve_relations(mat, p):
 
     return mat
 
-def egcd(a, b):
-    if a == 0:
-        return (b, 0, 1)
-    else:
-        g, y, x = egcd(b % a, a)
-        return (g, x - (b // a) * y, y)
 
 def find_row_to_elim_nonzero(mat, r_idx, c_idx, n):
     pivot_val = mat[r_idx][c_idx]
@@ -64,20 +52,6 @@ def find_row_to_elim_nonzero(mat, r_idx, c_idx, n):
             return r_iter,x,y
 
     return None, None, None
-
-#def solve_relations(matrix, p):
-#    return rref(matrix, p-1)
-
-def gcd(a, b):
-    return gcd(b, a % b) if a % b else b
-
-
-def mod_inv(a, n):
-    x0, x1 = 1, 0
-    while n != 0:
-        q, a, n = a // n, n, a % n
-        x0, x1 = x1, x0 - q * x1
-    return x0
 
 
 def subtract_rows(row_1, row_2, multiple,p):
@@ -99,7 +73,7 @@ def rref(matrix, p):
                 j += 1
                 continue
             matrix[[i, k]] = matrix[[k, i]]
-        div = mod_inv(matrix[i][j], p)
+        div = prime_mod_inv(matrix[i][j], p)
         # print("mat[i][j]=", matrix[i][j], "and div = ", div, "and p=", p)
         for k in range(0, matrix.shape[1]):
             if k != j:
@@ -167,7 +141,6 @@ def index_calculus(beta, p, alpha):
 
 def find_bound(n):
     return int(math.exp((2**(-0.5)*(math.log(2*n)*math.log(math.log(2*n)))**0.5)))
-
 
 
 def main():
