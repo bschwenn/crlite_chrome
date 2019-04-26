@@ -7,7 +7,7 @@ import sys
 import math
 import random
 import numpy as np
-from number_theory import gcd, egcd, prime_mod_inv, sieve_era
+from number_theory import *
 
 def precompute_prime_base(B):
     """
@@ -29,28 +29,14 @@ def prime_factorization(n, primes):
     return [ret[i] for i in ret] if n == 1 else None
 
 
-def solve_relations(mat, p):
-    n = len(mat)
-    for r_index, row in enumerate(mat):
-        for c_index in range(0, r_index):
-            if mat[r_index][c_index] != 0:
-                #for r_iter_index in range(r_index+1,
-                r_idx_to_use, x, y = find_row_to_elim_nonzero(mat, r_index, c_index, n)
-                if x == None:
-                    return # Failure
-                mat[r_index] = (x * row + y * mat[r_idx_to_use]) % (p-1)
-
-    return mat
-
-
-def find_row_to_elim_nonzero(mat, r_idx, c_idx, n):
+def find_row_to_elim_nonzero(mat, r_idx, c_idx, n, p):
     pivot_val = mat[r_idx][c_idx]
-
-    for r_iter in range(r_idx+1, n):
-        (d,x,y) = egcd(pivot_val, mat[r_iter][c_idx])
+    for r_iter in range(r_idx, n):
+        if gcd(mat[r_iter][c_idx], p-1) == 1:
+            return r_iter, None, None #can just swap the two rows
+        d, x, y = egcd(pivot_val, mat[r_iter][c_idx])
         if d == 1:
-            return r_iter,x,y
-
+            return r_iter, x, y
     return None, None, None
 
 
@@ -60,35 +46,37 @@ def subtract_rows(row_1, row_2, multiple,p):
     return row_1
 
 
-def rref(matrix, p):
-    i, j = 0, 0
-    while i < matrix.shape[0] and j < matrix.shape[1]:
-        if matrix[i][j] == 0 or gcd(matrix[i][j], p) != 1:
-            k = i
-            while k < matrix.shape[0]:
-                if matrix[k][j] != 0 or gcd(matrix[i][j], p)==1:
-                    break
-                k += 1
-            if k == matrix.shape[0]:
-                j += 1
+def rref(mat, p):
+    n = len(mat)
+    r_index, c_index = 0, 0
+    while r_index < mat.shape[0] and c_index < mat.shape[1]:
+        if mat[r_index][c_index] == 0 or gcd(mat[r_index][c_index], p - 1) != 1:
+            r_idx_to_use, x, y = find_row_to_elim_nonzero(mat, r_index, c_index, n, p)
+            if r_idx_to_use is None:
+                return  # Failure
+            if x is not None:
+                mat[r_index] = (x * mat[r_index] + y * mat[r_idx_to_use]) % (p - 1)
+                r_index += 1
+                c_index += 1
                 continue
-            matrix[[i, k]] = matrix[[k, i]]
-        div = prime_mod_inv(matrix[i][j], p)
-        # print("mat[i][j]=", matrix[i][j], "and div = ", div, "and p=", p)
-        for k in range(0, matrix.shape[1]):
-            if k != j:
-                matrix[i][k] *= div
-                # matrix[i][k] /= matrix[i][j]
-        matrix[i][j] = 1
-        for k in range(0, matrix.shape[0]):
-            if k != i:
-                matrix[k] = subtract_rows(matrix[k], matrix[i], matrix[k][j], p)
-        i += 1
-        j += 1
-    return matrix % p
+            else:  # means we're at the first return case, i.e. just need to swap rows
+                mat[[r_idx_to_use, r_index]] = mat[[r_index, r_idx_to_use]]
+        div = mod_inv(mat[r_index][c_index], p - 1)
+        for k in range(0, mat.shape[1]):
+            if k != c_index:
+                mat[r_index][k] *= div
+            mat[r_index][c_index] = 1
+        for k in range(0, mat.shape[0]):
+            if k != r_index:
+                mat[k] = subtract_rows(mat[k], mat[r_index], mat[k][c_index], p - 1)
+        r_index += 1
+        c_index += 1
+    return mat % (p-1)
 
 
 def zero_row_absent(matrix):
+    if matrix is None:
+        return False
     for i in matrix[-1]:
         if i != 0:
             return True
@@ -99,8 +87,22 @@ def linearly_independent(prime_factors, factor_products, p):
     factor_products.append(prime_factors)
     matrix = np.array(factor_products, dtype=np.float64)
     factor_products.pop()
-    matrix = rref(matrix, p-1)
+    matrix = rref(matrix, p)
     return zero_row_absent(matrix)
+
+
+def solve_calculus(beta, p, alpha, prime_discrete_logs, factor_base):
+    ret = None
+    for exp in range(1, p-1):
+        calc = (beta*pow(alpha, exp, p)) % p
+        prime_factors = prime_factorization(calc, factor_base)
+        if prime_factors:
+            ret = -exp % (p-1)
+            for idx, ele in enumerate(prime_factors):
+                if ele > 0:
+                    ret = (ret + (ele * prime_discrete_logs[idx][-1])) % (p-1)
+    return ret
+
 
 def index_calculus(beta, p, alpha):
     """
@@ -113,9 +115,7 @@ def index_calculus(beta, p, alpha):
     unused = set(factor_base)
     factor_products = []
     checked = set()
-    # while True:
-    while len(unused) > 0 or len(factor_products) < len(factor_base):  # arbitrary buffer number for mod inverse issues
-        # print(factor_products)
+    while len(unused) > 0 or len(factor_products) < len(factor_base):
         if len(checked) == p - 1:
             print("The bound B wasn't big enough!")
             exit(0)
@@ -134,9 +134,13 @@ def index_calculus(beta, p, alpha):
                     if factor_base[index] in unused:
                         unused.remove(factor_base[index])
                 factor_products.append(prime_factors)
-    print(factor_products)
-    prime_discrete_logs = solve_relations(np.array(factor_products, dtype=np.float64), p)
-    return prime_discrete_logs
+    # print(factor_products)
+    prime_discrete_logs = rref(np.array(factor_products), p)
+    ret = solve_calculus(beta, p, alpha, prime_discrete_logs, factor_base)
+    if ret:
+        return ret
+    else:
+        print("We were unsuccessful. Try again!")
 
 
 def find_bound(n):
@@ -153,16 +157,10 @@ def main():
     beta = int(sys.argv[1])
     p = int(sys.argv[2])
     alpha = int(sys.argv[3])
-    print(alpha)
+    # print(alpha)
     print("The value of x is",  index_calculus(beta, p, alpha))
     return 0
 
 
 if __name__ == "__main__":
    main()
-   #mat = np.array([[2, 1, 0, 1], [1, 1, 0, 3], [0, 0, 0, 0]], dtype=np.float64)
-   #print(zero_row_absent(mat))
-   # mat = np.array([[2, 1, 0, 1], [1, 1, 0, 3], [0, 0, 0, 0]], dtype=np.float64)
-   # print(zero_row_absent(mat))
-   # print(mod_inv(3, 101))
-   # print(mod_inv(1, 100))
