@@ -2,7 +2,6 @@
 Usage: python index.py beta p alpha
 where beta is some number such that beta \equiv alpha^x (mod p), where alpha is a primitive root mod p
 """
-import logging
 import sys
 import math
 import random
@@ -152,7 +151,7 @@ def main():
         print("Usage: python index.py beta p alpha, where beta = alpha^x (mod p)")
         return 1
 
-    logging.basicConfig(filename='index.log', filemode='w', level=logging.DEBUG, format='%(message)s')
+    #logging.basicConfig(filename='index.log', filemode='w', level=logging.DEBUG, format='%(message)s')
 
     beta = int(sys.argv[1])
     p = int(sys.argv[2])
