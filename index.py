@@ -118,6 +118,21 @@ def linearly_independent(prime_factors, factor_products, p):
     matrix = rref(matrix, p)
     return zero_row_absent(matrix)
 
+
+def solve_calculus(beta, p, alpha, prime_discrete_logs, factor_base):
+    ret = None
+    for exp in range(1, p-1):
+        calc = (beta*pow(alpha, exp, p)) % p
+        prime_factors = prime_factorization(calc, factor_base)
+        if prime_factors:
+            ret = -exp % (p-1)
+            for idx, ele in enumerate(prime_factors):
+                if ele > 0:
+                    ret = (ret + (ele * prime_discrete_logs[idx][-1])) % (p-1)
+    return ret
+
+
+
 def index_calculus(beta, p, alpha):
     """
     :param beta:
@@ -148,9 +163,13 @@ def index_calculus(beta, p, alpha):
                     if factor_base[index] in unused:
                         unused.remove(factor_base[index])
                 factor_products.append(prime_factors)
-    print(factor_products)
+    # print(factor_products)
     prime_discrete_logs = rref(np.array(factor_products), p)
-    return prime_discrete_logs
+    ret = solve_calculus(beta, p, alpha, prime_discrete_logs, factor_base)
+    if ret:
+        return ret
+    else:
+        print("We were unsuccessful. Try again!")
 
 
 def find_bound(n):
@@ -168,7 +187,7 @@ def main():
     beta = int(sys.argv[1])
     p = int(sys.argv[2])
     alpha = int(sys.argv[3])
-    print(alpha)
+    # print(alpha)
     print("The value of x is",  index_calculus(beta, p, alpha))
     return 0
 
