@@ -1,4 +1,6 @@
+import math
 import random
+from functools import reduce
 
 MILLER_RABIN_ROUNDS = 6
 
@@ -12,6 +14,13 @@ def egcd(a, b):
 def gcd(a, b):
     return gcd(b, a % b) if a % b else b
 
+def chinese_remainder(n, a):
+    sum = 0
+    prod = reduce(lambda a, b: a*b, n)
+    for n_i, a_i in zip(n, a):
+        p = prod // n_i
+        sum += a_i * mod_inv(p, n_i) * p
+    return sum % prod
 
 def mod_inv(a, n):
     x0, x1 = 1, 0
@@ -19,6 +28,26 @@ def mod_inv(a, n):
         q, a, n = a // n, n, a % n
         x0, x1 = x1, x0 - q * x1
     return x0
+
+# To compute (a * b) % mod
+def mulmod(a, b, mod):
+
+    res = 0; # Initialize result
+    a = a % mod;
+    while (b > 0):
+
+        # If b is odd, add 'a' to result
+        if (b % 2 == 1):
+            res = (res + a) % mod;
+
+        # Multiply 'a' with 2
+        a = (a * 2) % mod;
+
+        # Divide b by 2
+        b //= 2;
+
+    # Return result
+    return res % mod
 
 def prime_mod_inv(a, prime):
     return pow(a, prime-2, prime)
@@ -91,3 +120,46 @@ def is_prime(n):
             return False
 
     return True
+
+# Find all prime factors of n up to limit.
+def get_factors_up_to(n, limit):
+    primes = sieve_era(limit)
+    factors = {}
+    prod = 1
+
+    for prime in primes:
+        exp = find_highest_power_factor(n, prime)
+
+        if exp > 0:
+            factors[prime] = exp
+            prod *= prime**exp
+
+            if prod == n:
+                return factors
+            elif is_prime(n//prod):
+                factors[n//prod] = 1
+                return factors
+
+    return factors
+
+# Find the highest power of a prime dividing n (just the power, not exponent).
+def find_highest_power_factor(n, prime):
+    k = 1
+    power = prime
+    old_power = None
+
+    while n % power == 0:
+        k += 1
+        old_power = power
+        power = prime**k
+
+    return k-1
+
+# Factor by trial division, used for small n.
+def factor_by_division(n):
+    if n == 1:
+        return [1]
+    if n == 2:
+        return [2]
+
+    return get_factors_up_to(n, int(math.sqrt(n)))

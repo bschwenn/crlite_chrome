@@ -15,10 +15,12 @@ def generate_and_write_keys(digits):
     priv_key_b = generate_private_key(prime, generator)
     g_to_a = pow(generator, priv_key_a, prime)
     g_to_b = pow(generator, priv_key_b, prime)
+    # Not really doing anything with the shared key since we're just
+    # using this to generate instances of DLP to attack
     shared_key = pow(g_to_a, priv_key_b, prime)
     assert(shared_key == pow(g_to_b, priv_key_a, prime))
 
-    pub_dict = { 'prime':prime, 'generator':generator }
+    pub_dict = { 'prime':prime, 'generator':generator, 'g_to_a': g_to_a, 'g_to_b': g_to_b }
 
     with open('key.pub', 'w') as outfile:
         json.dump(pub_dict, outfile)
@@ -58,7 +60,7 @@ def next_prime(num):
 # -a-primitive-root-for-diffie-hellman, it seems that it is sufficient in
 # practice to just take a random integer modulo p. TODO: confirm this.
 def select_generator(p):
-    return random.randrange(2, p)
+    return next_prime(random.randrange(2, p - 2 * int(math.log(p))))
 
 def generate_private_key(prime, generator):
     a = random.randrange(2, prime-1)
