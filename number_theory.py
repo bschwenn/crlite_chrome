@@ -157,13 +157,25 @@ def find_highest_power_factor(n, prime):
     return k-1
 
 # Factor by trial division, used for small n.
-def factor_by_division(n):
+def factor_by_division(n, B):
     if n == 1:
         return [1]
     if n == 2:
         return [2]
 
-    return get_factors_up_to(n, int(math.sqrt(n)))
+    factors = get_factors_up_to(n, B)
+    remaining = n
+
+    for f in factors:
+        remaining //= f
+
+    if remaining == 1:
+        return factors
+    elif is_prime(remaining):
+        factors.append(remaining)
+        return factors
+    else:
+        return None
 
 def factor_in_base_map(n, p_set):
     ans = defaultdict(lambda: 0)

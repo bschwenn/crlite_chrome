@@ -60,7 +60,7 @@ def next_prime(num):
 # -a-primitive-root-for-diffie-hellman, it seems that it is sufficient in
 # practice to just take a random integer modulo p. TODO: confirm this.
 def select_generator(p):
-    return next_prime(random.randrange(2, p - 2 * int(math.log(p))))
+    return random.randrange(2, p - 2 * int(math.log(p)))
 
 def generate_private_key(prime, generator):
     a = random.randrange(2, prime-1)
