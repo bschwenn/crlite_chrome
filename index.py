@@ -4,13 +4,14 @@ where beta is some number such that beta \equiv alpha^x (mod p), where alpha is 
 """
 import sys
 import math
+from sympy import Matrix
 import random
 import flint
 import numpy as np
 from collections import defaultdict
 from number_theory import *
 
-EXCESS_EQUATIONS = 5
+EXCESS_EQUATIONS = 0
 
 def precompute_prime_base(B):
     """
@@ -23,13 +24,31 @@ def precompute_prime_base(B):
 
 
 def prime_factorization(n, primes):
+    #ret = []
+
+    #for p in primes:
+    #    k = 1
+    #    while n % p**k == 0:
+    #        k += 1
+
+    #    ret.append(k-1)
+
+    ##print(n)
+    ##print(primes)
+    ##print(ret)
+    #prod = 1
+    #for i,p in enumerate(primes):
+    #    prod *= primes[i] ** ret[i]
+    #return ret if prod == n else None
     ret = dict()
+    nn = n
     for p in primes:
         ret[p] = 0
         while n % p == 0:
             n //= p
             ret[p] += 1
-    return [ret[i] for i in ret] if n == 1 else None
+    result =  [ret[i] for i in ret] if n == 1 else None
+    return result
 
 
 def find_row_to_elim_nonzero(mat, r_idx, c_idx, n, p):
@@ -50,14 +69,22 @@ def subtract_rows(row_1, row_2, multiple,p):
 
 def rref_crt(mat, p, fz):
     reductions = {}
-
     for f,exp in fz.items():
         if exp > 0:
-            reductions[f] = rref_prime(np.copy(mat), f)
+            print("Factor:", f)
+            reductions[f] = rref_prime(np.copy(mat), f).table()
+            r = reductions[f]
+
+            for i in range(len(r[0])-1):
+
+                row = r[i]
+                print(row[i], end='')
+            print()
 
     vals_for_idx = defaultdict(lambda: ([],[]))
     for f,reduced in reductions.items():
-        for i, row in enumerate(reduced.table()):
+        for i in range(len(reduced[0])-1):
+            row = reduced[i]
             mods, vals = vals_for_idx[int(i)]
             mods.append(f)
             vals.append(int(row[-1]))
@@ -66,12 +93,13 @@ def rref_crt(mat, p, fz):
     sols = {}
     for k,v in vals_for_idx.items():
         n, a = v
+        print(k, n, a)
         sols[k] = chinese_remainder(n, a)
-
     return sols
 
 def rref_prime(mat, p):
     res, rank = flint.nmod_mat(mat.tolist(), p).rref()
+    print(p, ":", rank, "=", len(mat[0]), "=", len(mat))
     return res
     return rref(mat,p+1)
     r_index, c_index = 0, 0
@@ -92,7 +120,6 @@ def rref_prime(mat, p):
         r_index += 1
         c_index += 1
 
-    #print(mat)
     return mat
 
 def rref(mat, p):
@@ -161,16 +188,31 @@ def solve_calculus(beta, p, alpha, prime_discrete_logs, factor_base):
 
     return ret
 
-def find_maximally_ind_set(mat, p):
-    trans = mat.transpose()
-    reduced = rref(trans, p)
-    ind = set()
-    for r in range(len(reduced)):
-        for c in range(len(reduced[r])):
-            if reduced[r][c] == 1:
-                ind.add(c)
-            if reduced[r][c] != 0:
-                break
+def linearly_independent_mod_2(mat):
+    pass
+
+def find_maximally_ind_set(mat, p, fz):
+    all_i = set(range(len(mat[0])))
+    ind = set(range(len(mat[0])))
+
+    for f,exp in fz.items():
+        if exp > 0:
+            ind_f = set()
+            reduced = rref_prime(np.copy(mat).transpose(), f).table()
+            r, c = 0, 0
+
+            if  f == 2:
+                print(np.array(reduced))
+
+            while r < len(reduced) and c < len(reduced[r]):
+                if reduced[r][c].__int__() == 1:
+                    ind_f.add(c)
+                    r += 1
+                    c += 1
+                else: c+= 1
+
+            not_ind = all_i.difference(ind_f)
+            ind = ind.difference(not_ind)
 
     return ind
 
@@ -185,18 +227,14 @@ def index_calculus(beta, p, alpha):
     unused = set(factor_base)
     factor_products = []
     checked = set()
-    factors_pm1 = prime_factorization(p-1, factor_base)
-    factors_pm1 = factor_by_division(p-1)
-    if not factors_pm1:
+    order_fz = factor_by_division(p-1)
+    print (order_fz)
+    if not order_fz:
+        print("Couldn't factor p-1!")
         exit(0)
-    pm1_map = factors_pm1
-    #for i in range(len(factors_pm1)):
-    #    pm1_map[factor_base[i]] = factors_pm1[i]
+    real_discrete_logs = dict()
     while len(checked) < p-1:
-        while len(unused) > 0 or len(factor_products) < len(factor_base):# + EXCESS_EQUATIONS:
-            #if len(checked) == p - 1:
-            #    print("The bound B wasn't big enough!")
-            #    exit(0)
+        while len(unused) > 0 or len(factor_products) < len(factor_base)+ EXCESS_EQUATIONS:
             exp = random.randint(1, p - 1)
             if exp in checked:
                 continue
@@ -207,28 +245,45 @@ def index_calculus(beta, p, alpha):
             prime_factors = prime_factorization(power, factor_base)
             if prime_factors:
                 prime_factors.append(exp)
-                if True:#linearly_independent(prime_factors, factor_products, p):
-                    for index, i in enumerate(prime_factors[:-1]):
-                        if factor_base[index] in unused:
-                            unused.remove(factor_base[index])
-                    factor_products.append(prime_factors)
-        # print(factor_products)
+                for index, i in enumerate(prime_factors[:-1]):
+                    if factor_base[index] in unused:
+                        unused.remove(factor_base[index])
+                factor_products.append(prime_factors)
         mat = np.array(factor_products)
-        ind = find_maximally_ind_set(np.copy(mat), p)
-        if len(ind) == len(mat):
-
-            prime_discrete_logs = rref_crt(np.array(factor_products), p, pm1_map)
+        independent = find_maximally_ind_set(mat, p, order_fz)
+        if len(independent) == len(factor_base):
+            factor_products = [e for i,e in enumerate(factor_products) if i in independent]
+            prime_discrete_logs = rref_crt(np.array(factor_products), p, order_fz)
+            check_crt_results(prime_discrete_logs, factor_base, alpha, p)
             ret = solve_calculus(beta, p, alpha, prime_discrete_logs, factor_base)
+
             if ret:
+                #print(np.array(factor_products))
                 return ret
             else:
                 print("We were unsuccessful. Try again!")
         else:
-            factor_products = [e for i,e in enumerate(factor_products) if i in ind]
+            factor_products = [e for i,e in enumerate(factor_products) if i in independent]
 
 
-def find_bound(n):
-    return int(math.exp((2**(-0.5)*(math.log(2*n)*math.log(math.log(2*n)))**0.5)))
+def check_crt_results(discrete_log_map, factor_base, g, p):
+    successful = dict()
+
+    for k,v in discrete_log_map.items():
+        power = pow(g, v, p)
+        print(power, "==", factor_base[k])
+
+        if power == factor_base[k]:
+            successful[factor_base[k]] = v
+
+    return successful
+
+def find_bound(p):
+    return int(3.33*L_p(p, 0.5, 0.476))
+    #return int(math.exp((2**(-0.5)*(math.log(2*n)*math.log(math.log(2*n)))**0.5)))
+
+def L_p(p,s,c):
+    return math.exp(c*(math.log(p)**s)*(math.log(math.log(p)))**s)
 
 
 def main():
@@ -236,13 +291,13 @@ def main():
         print("Usage: python index.py beta p alpha, where beta = alpha^x (mod p)")
         return 1
 
-    #logging.basicConfig(filename='index.log', filemode='w', level=logging.DEBUG, format='%(message)s')
-
     beta = int(sys.argv[1])
     p = int(sys.argv[2])
     alpha = int(sys.argv[3])
+    x = index_calculus(beta, p, alpha)
     # print(alpha)
-    print("The value of x is",  index_calculus(beta, p, alpha))
+    print("The value of x is",  x)
+    print("Verification:", beta, "==", pow(alpha, x, p))
     return 0
 
 

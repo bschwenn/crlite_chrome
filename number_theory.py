@@ -1,5 +1,6 @@
 import math
 import random
+from collections import defaultdict
 from functools import reduce
 
 MILLER_RABIN_ROUNDS = 6
@@ -163,3 +164,17 @@ def factor_by_division(n):
         return [2]
 
     return get_factors_up_to(n, int(math.sqrt(n)))
+
+def factor_in_base_map(n, p_set):
+    ans = defaultdict(lambda: 0)
+
+    for i in p_set:
+        count = 0
+        exp = 1
+
+        while n % i**exp == 0:
+            exp += 1
+
+        if exp-1 != 0:
+            ans[i] = exp-1
+    return ans
