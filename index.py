@@ -10,6 +10,7 @@ import flint
 import numpy as np
 from collections import defaultdict
 from number_theory import *
+from functools import reduce
 
 EXCESS_EQUATIONS = 0
 
@@ -46,31 +47,52 @@ def subtract_rows(row_1, row_2, multiple,p):
     return row_1
 
 
-def rref_crt(mat, p, fz):
-    reductions = {}
+def rref_crt(mat, p, fz, factor_base, g):
+    congruences = [[] for i in range(len(factor_base))]
 
     for f,exp in fz.items():
         if exp > 0:
-            reductions[f] = rref_prime(np.copy(mat), f)
-            r = reductions[f]
+            reduction = rref_prime(np.copy(mat), f)
 
-    vals_for_idx = defaultdict(lambda: ([],[]))
+            #if exp > 1:
+            #    reduction = find_real_reductions(reduction, f, exp, g, p, factor_base)
 
-    for f,reduced in reductions.items():
-        for i in range(len(reduced[0])-1):
-            row = reduced[i]
-            mods, vals = vals_for_idx[int(i)]
-            mods.append(f)
-            vals.append(int(row[-1]))
-            vals_for_idx[int(i)] = mods,vals
+            for i,r in enumerate(reduction):
+                congruences[i].append(r[-1])
 
     sols = {}
+    n = [k for k in fz.keys()]
 
-    for k,v in vals_for_idx.items():
-        n, a = v
-        sols[k] = chinese_remainder(n, a)
+    for i,a in enumerate(congruences):
+        sols[i] = chinese_remainder(n, [int(i) for i in a])
+
+    transl = {k:idx for idx,k in enumerate(fz)}
+
+    modulus = reduce(lambda a,b: a*b, n)
+
+    for i,s in sols.items():
+        if not is_log(g, p, s, factor_base[i]):
+            possibilities = [s]
+            for f,exp in fz.items():
+                if exp > 1:
+                    mod_f = int(modulus/f)
+                    new_possibilities = []
+                    power = f**exp
+
+                    for pos in possibilities:
+                        for t in range(0, f**exp, f):
+                            r = chinese_remainder([mod_f, f**exp], [pos % mod_f, t + int(congruences[i][transl[f]])])
+                            new_possibilities.append(r)
+
+                    possibilities = new_possibilities
+
+            for t in possibilities:
+                if is_log(g, p, t, factor_base[i]):
+                    sols[i] = t
+                    break
 
     return sols
+
 
 def rref_prime(mat, p):
     if p == 2:
@@ -101,10 +123,16 @@ def linearly_independent(prime_factors, factor_products, p):
 
 def solve_calculus(beta, p, alpha, prime_discrete_logs, factor_base):
     ret = None
+    # Only use the prime in the factor base for which we got a valid log
+    # computation. This might not be the case in particular if p-1
+    # contains prime powers in its factorization.
+
+    fb =  [f for i,f in enumerate(factor_base) if prime_discrete_logs[i]]
+    prime_discrete_logs = [f for i,f in prime_discrete_logs.items() if f]
 
     for exp in range(1, p-1):
         calc = (beta*pow(alpha, exp, p)) % p
-        prime_factors = prime_factorization(calc, factor_base)
+        prime_factors = prime_factorization(calc, fb)
 
         if prime_factors:
             ret = (-exp) % (p-1)
@@ -212,17 +240,8 @@ def index_calculus(beta, p, alpha):
 
         if len(independent) == len(factor_base):
             factor_products = [e for i,e in enumerate(factor_products) if i in independent]
-            prime_discrete_logs = rref_crt(np.array(factor_products), p, order_fz)
-            #good_indices = check_crt_results(prime_discrete_logs, factor_base, alpha, p)
-
-            #if len(good_indices) < math.sqrt(B):
-            #    print("We were unsuccessful. Make sure the base is actually a primitive root, and try again!")
-            #    exit(0)
-
-            #prime_discrete_logs = [p for i,p in prime_discrete_logs.items() if i in good_indices]
+            prime_discrete_logs = rref_crt(np.array(factor_products), p, order_fz, factor_base, alpha)
             prime_discrete_logs = check_crt_results(prime_discrete_logs, factor_base, alpha, p)
-
-            #factor_base_to_use = [p for i,p in enumerate(factor_base) if i in good_indices]
             ret = solve_calculus(beta, p, alpha, prime_discrete_logs, factor_base)#_to_use)
 
             if ret:
@@ -247,11 +266,21 @@ def check_crt_results(discrete_log_map, factor_base, g, p):
         # since -1 = p - 1 (mod p) and g^(p-1) = 1 (mod p).
         if power == neg_prime:
             new_map[k] = (v - int((p-1)/2)) % (p-1)
-        else:
+        elif power == factor_base[k]:
             new_map[k] = v
+        else:
+            new_map[k] = None
 
     return new_map
 
+def is_log(g, p, x, f):
+    t = pow(g,x,p)
+    neg_f = p - f
+
+    if t == neg_f or t == f:
+        return True
+    else:
+        return False
 
 def find_bound(p):
     return int(3.33*L_p(p, 0.5, 0.476))
