@@ -6,6 +6,7 @@ import sys
 import math
 from sympy.ntheory import factorint
 import random
+import logging
 import flint
 import numpy as np
 from collections import defaultdict
@@ -28,6 +29,7 @@ def prime_factorization(n, primes):
 def rref_crt(mat, p, fz, factor_base, g):
     congruences = [[] for i in range(len(factor_base))]
 
+    logging.debug("Reducing equations in prime subgroups...")
     for f,exp in fz.items():
         if exp > 0:
             reduction = rref_prime(np.copy(mat), f)
@@ -38,6 +40,7 @@ def rref_crt(mat, p, fz, factor_base, g):
     sols = {}
     n = [k for k in fz.keys()]
 
+    logging.debug("Applying Chinese remainder theorem...")
     for i,a in enumerate(congruences):
         sols[i] = chinese_remainder(n, [int(i) for i in a])
 
@@ -45,14 +48,15 @@ def rref_crt(mat, p, fz, factor_base, g):
 
     modulus = reduce(lambda a,b: a*b, n)
 
+    logging.debug("Fixing possible errors in factor base logarithms...")
     for i,s in sols.items():
         if not confirm_log(g, p, s, factor_base[i]):
-            fix_prime_power_low(g, p, factor_base[i], fz, soln, congruences[i], modulus, index_map)
+            sols[i] = fix_prime_power_log(g, p, s, factor_base[i], fz, congruences[i], modulus, transl)
 
     return sols
 
 
-def fix_prime_power_log(g, p, base_factor, fz, soln, congruences, modulus, index_map):
+def fix_prime_power_log(g, p, s, base_factor, fz, congruences, modulus, index_map):
     possibilities = [s]
 
     for f,exp in fz.items():
@@ -70,9 +74,9 @@ def fix_prime_power_log(g, p, base_factor, fz, soln, congruences, modulus, index
 
     for t in possibilities:
         if confirm_log(g, p, t, base_factor):
-            sols[i] = t
-            return
+            return t
 
+    return s
 
 def rref_prime(mat, p):
     res, _ = flint.nmod_mat(mat.tolist(), p).rref()
@@ -87,6 +91,7 @@ def solve_calculus(beta, p, alpha, prime_discrete_logs, factor_base):
     fb =  [f for i,f in enumerate(factor_base) if prime_discrete_logs[i]]
     prime_discrete_logs = [f for i,f in prime_discrete_logs.items() if f]
 
+    logging.debug("Solving calculus with {} small discrete logs solved...".format(len(prime_discrete_logs)))
     for exp in range(1, p-1):
         calc = (beta*pow(alpha, exp, p)) % p
         prime_factors = prime_factorization(calc, fb)
@@ -106,6 +111,7 @@ def find_maximally_ind_set(mat, p, fz):
     all_i = set(range(len(mat[0])))
     ind = set(range(len(mat[0])))
 
+    logging.debug("Finding maximally independent set...")
     for f,exp in fz.items():
         if exp > 0:
             ind_f = set()
@@ -138,6 +144,7 @@ def index_calculus(beta, p, alpha):
     checked = set()
     order_fz = factorint(p-1)
 
+    logging.debug("Finding dependencies; need {}...".format(len(factor_base)))
     while len(checked) < p-1:
         while len(unused) > 0 or len(factor_products) < len(factor_base):
             exp = random.randint(2, p - 1)
@@ -166,6 +173,7 @@ def index_calculus(beta, p, alpha):
         independent = find_maximally_ind_set(mat, p, order_fz)
 
         if len(independent) == len(factor_base):
+            logging.debug("Found enough factorizations!")
             factor_products = [e for i,e in enumerate(factor_products) if i in independent]
             prime_discrete_logs = rref_crt(np.array(factor_products), p, order_fz, factor_base, alpha)
             prime_discrete_logs = check_crt_results(prime_discrete_logs, factor_base, alpha, p)
@@ -174,12 +182,15 @@ def index_calculus(beta, p, alpha):
             if ret:
                 return ret
             else:
-                print("We were unsuccessful. Try again!")
+                print("We were unsuccessful. Make sure that your base is a primitive root and try again!")
+                exit(0)
         else:
+            logging.debug("Not enough independent factorizations! Need {}, had {}.".format(len(factor_base), len(independent)))
             factor_products = [e for i,e in enumerate(factor_products) if i in independent]
 
 
 def check_crt_results(discrete_log_map, factor_base, g, p):
+    logging.debug("Checking CRT results...")
     successful = []
     new_map = dict()
 
@@ -198,6 +209,8 @@ def confirm_log(g, p, x, f):
     # then we know that s = g^(x - (p-1)/2) (mod p). This is true
     # because p-1 = g^((p-1)/2) (mod p) when g is a primitive root,
     # since -1 = p - 1 (mod p) and g^(p-1) = 1 (mod p).
+    logging.debug("{} =?= {} =?= {}".format(f, t, neg_f))
+
     if t == f:
         return x
     elif t == neg_f:
@@ -218,6 +231,8 @@ def main():
     if len(sys.argv) < 4:
         print("Usage: python index.py beta p alpha, where beta = alpha^x (mod p)")
         return 1
+
+    logging.basicConfig(filename='index.log', filemode='w', level=logging.DEBUG)
 
     beta = int(sys.argv[1])
     p = int(sys.argv[2])
